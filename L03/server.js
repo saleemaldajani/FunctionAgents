@@ -18,7 +18,20 @@ app.use(express.static(path.resolve(process.cwd(), './public')));
 const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY,
 });
-
+let state = {
+    chatgpt:false,
+    assistant_id: "",
+    assistant_name: "",
+    dir_path: "",
+    news_path: "",
+    thread_id: "",
+    user_message: "",
+    run_id: "",
+    run_status: "",
+    vector_store_id: "",
+    tools:[],
+    parameters: []
+  };
 // Default route to serve index.html for any undefined routes
 app.get('*', (req, res) => {
     res.sendFile(path.resolve(process.cwd(), './public/index.html'));
@@ -44,7 +57,7 @@ async function getFunctions() {
 }
 
 // Route to interact with OpenAI API
-app.post('/execute-function', async (req, res) => {
+app.post('/api/execute-function', async (req, res) => {
     const { functionName, parameters } = req.body;
 
     // Import all functions
@@ -65,30 +78,32 @@ app.post('/execute-function', async (req, res) => {
 });
 
 // Example to interact with OpenAI API and get function descriptions
-app.post('/openai-function-call', async (req, res) => {
-    const { userPrompt } = req.body;
+app.post('/api/openai-call', async (req, res) => {
+    const { user_message } = req.body;
 
-    const functions = await importFunctions();
+    const functions = await getFunctions();
     const availableFunctions = Object.values(functions).map(fn => fn.details);
-
+    console.log(`availableFunctions: ${JSON.stringify(availableFunctions)}`);
     try {
         // Make OpenAI API call
-        const response = await openai.createChatCompletion({
-            model: 'gpt-3.5-turbo',
+        const response = await openai.chat.completions.create({
+            model: 'gpt-4o',
             messages: [
                 { role: 'system', content: 'You are a helpful assistant.' },
-                { role: 'user', content: userPrompt }
+                { role: 'user', content: user_message }
             ],
-            functions: availableFunctions
+            tools: availableFunctions
         });
+       
+       // Extract the arguments for get_delivery_date
+// Note this code assumes we have already determined that the model generated a function call. See below for a more production ready example that shows how to check if the model generated a function call
+        const toolCall = response.choices[0].message.tool_calls[0];
 
-        const completion = response.data.choices[0];
-        const calledFunction = completion.function_call;
-
-        // If OpenAI calls a function, execute it
-        if (calledFunction) {
-            const functionName = calledFunction.name;
-            const parameters = JSON.parse(calledFunction.arguments);
+// Extract the arguments for get_delivery_date
+// Note this code assumes we have already determined that the model generated a function call. 
+        if (toolCall) {
+            const functionName = toolCall.function.name;
+            const parameters = JSON.parse(toolCall.function.arguments);
 
             const result = await functions[functionName].execute(...Object.values(parameters));
             res.json({ result });
@@ -100,7 +115,17 @@ app.post('/openai-function-call', async (req, res) => {
         res.status(500).json({ error: 'OpenAI API failed', details: error.message });
     }
 });
-
+app.post('/api/prompt', async (req, res) => {
+    // just update the state with the new prompt
+    state = req.body;
+    try {
+        res.status(200).json({ message: `got prompt ${state.user_message}`, "state": state });
+    }
+    catch (error) {
+        console.log(error);
+        res.status(500).json({ message: 'User Message Failed', "state": state });
+    }
+});
 // Start the server
 const PORT = 3000;
 app.listen(PORT, () => {
