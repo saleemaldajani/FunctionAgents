@@ -84,14 +84,15 @@ app.post('/api/openai-call', async (req, res) => {
     const functions = await getFunctions();
     const availableFunctions = Object.values(functions).map(fn => fn.details);
     console.log(`availableFunctions: ${JSON.stringify(availableFunctions)}`);
+    let messages = [
+        { role: 'system', content: 'You are a helpful assistant.' },
+        { role: 'user', content: user_message }
+    ];
     try {
         // Make OpenAI API call
         const response = await openai.chat.completions.create({
             model: 'gpt-4o',
-            messages: [
-                { role: 'system', content: 'You are a helpful assistant.' },
-                { role: 'user', content: user_message }
-            ],
+            messages: messages,
             tools: availableFunctions
         });
        
@@ -106,7 +107,29 @@ app.post('/api/openai-call', async (req, res) => {
             const parameters = JSON.parse(toolCall.function.arguments);
 
             const result = await functions[functionName].execute(...Object.values(parameters));
-            res.json({ result });
+
+            const function_call_result_message = {
+                role: "tool",
+                content: JSON.stringify({
+                    result: result
+                }),
+                tool_call_id: response.choices[0].message.tool_calls[0].id
+            };
+            // add to the end of the messages array to send the function call result back to the model
+            messages.push(response.choices[0].message);
+            messages.push(function_call_result_message);
+            const completion_payload = {
+                model: "gpt-4o",
+                messages: messages,
+            };
+            // Call the OpenAI API's chat completions endpoint to send the tool call result back to the model
+            const final_response = await openai.chat.completions.create({
+                model: completion_payload.model,
+                messages: completion_payload.messages
+            });
+
+
+            res.json({ message:final_response, state: state });
         } else {
             res.json({ message: 'No function call detected.' });
         }
