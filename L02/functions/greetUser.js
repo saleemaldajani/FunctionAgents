@@ -3,16 +3,19 @@ const execute = async (name) => {
 };
 
 const details = {
-    name: 'greetUser',
-    parameters: {
-        type: 'object',
-        properties: {
-            name: {
-                type: 'string',
-                description: 'Name of the user to greet'
-            }
-        },
-        required: ['name']
+    type: "function",
+    function: {
+        name: "greetUser",
+        parameters: {
+            type: "object",
+            properties: {
+                name: {
+                    type: "string",
+                    description: "Name of the user to greet"
+                }
+            },
+            required: ["name"]
+        }
     },
     description: 'This function greets a user by name.'
 };
