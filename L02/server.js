@@ -40,6 +40,7 @@ async function getFunctions() {
             };
         }
     }
+    console.log(JSON.stringify(openAIFunctions));
     return openAIFunctions;
 }
 
@@ -56,7 +57,7 @@ app.post('/execute-function', async (req, res) => {
 
     try {
         // Call the function
-        const result = await functions[functionName].execute(...Object.values(parameters));
+        const result = await functions[functionName].execute(parameters);
         console.log(`result: ${JSON.stringify(result)}`);
         res.json(result);
     } catch (err) {
